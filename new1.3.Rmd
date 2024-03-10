@@ -1,0 +1,139 @@
+---
+title: "Untitled"
+author: "YU Han 21023574"
+date: "2023-09-25"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r }
+library(readxl)
+datatra=read.csv(file.choose())
+datatest=read.csv(file.choose())
+datatra[datatra == "benign"] = 0
+datatra[datatra == "malignant"] = 1
+datatest[datatest == "benign"] = 0
+datatest[datatest == "malignant"] = 1
+datatra$Bare.nuclei=replace(datatra$Bare.nuclei, is.na(datatra$Bare.nuclei),
+                            round(mean(datatra$Bare.nuclei, na.rm = TRUE)))
+datatest$Bare.nuclei=replace(datatest$Bare.nuclei, is.na(datatest$Bare.nuclei),
+                            round(mean(datatest$Bare.nuclei, na.rm = TRUE)))
+```
+
+```{r }
+#problem3
+#point1
+library(dplyr)
+datatra1=datatra[,2:10]
+datatest1=datatest[,2:10]
+knnuw=data.frame(Class=vector(),freq=vector())
+knn_roc=data.frame(Class=vector(),freq=vector())
+#To output the classification based on different k
+knn1=function(k){
+  for (i in 1:299) {
+    datamix=rbind(datatest1[i,],datatra1) 
+    odist=as.matrix(dist(datamix,method = "euclidean")) 
+    odisti=odist[-1,]
+    datafin=cbind(datatra,odisti[,1])
+    datafin=datafin[order(datafin$`odisti[, 1]`),] 
+    knn_re=datafin[1:k,]
+    lablet=table(knn_re$Class)
+    lablet=as.data.frame(lablet)
+    lablet=lablet[order(lablet$Freq,decreasing = TRUE),]
+    knnuw=rbind(knnuw,lablet[1,])
+  }
+  return(knnuw)
+}
+#Choose best k based on the accurancy
+for (k in 1:10) {
+  datak=knn1(k)$Var1
+  Freq=table(datak,datatest$Class)
+  print(1-sum(diag(Freq))/299)#caculate the AUC
+}
+#From the print, I find that k=3 is the best choice
+start_time <- Sys.time()
+data_3k=knn1(3)
+data_3k$Var1#show KNN classification result
+data_3k[,'prob1']=NA
+data_3k$prob1=replace(data_3k$prob1,which(data_3k$Var1==0),
+                      1-data_3k[which(data_3k$Var1==0),2]/3)
+data_3k$prob1=replace(data_3k$prob1,which(data_3k$Var1==1),
+                      data_3k[which(data_3k$Var1==1),2]/3)
+seqs=c(0,0.33,0.66,1)
+final_roc=data.frame(fpr=vector(),tpr=vector())
+data_3k1=data_3k
+for (i in seqs) {
+  data_3k1$Var1=replace(data_3k1$Var1,which(i<=data_3k1$prob1&data_3k1$prob1<2),1)
+  roc3=table(data_3k1$Var1,datatest$Class)
+  tpr=roc3[1,2]/sum(roc3[,2])
+  fpr=roc3[1,1]/sum(roc3[,1])
+  roc1=data.frame('fpt'=fpr,'tpr'=tpr)
+  final_roc=rbind(final_roc,roc1)
+  data_3k1=data_3k
+}
+print(final_roc)
+#
+final_roc=rbind(final_roc,list(0,0))
+f1=plot(final_roc,type = "l",xlab="fpr",ylab='tpr',main='unweighted KNN')
+end_time <- Sys.time()
+knn1_time=end_time-start_time
+knn1_time
+#point2
+knnuw2=data.frame(Class=vector(),freq=vector())
+#To output the classification based on different k and h
+knn2=function(k,h){
+  for (i in 1:299) {
+    datamix=rbind(datatest1[i,],datatra1) 
+    odist=as.matrix(dist(datamix,method = "euclidean")) 
+    odisti=odist[-1,]
+    d=odisti[,1]
+    dh=exp(-((d/h)^2)/2)
+    wd=d*dh
+    datafin2=cbind(datatra,d,wd)
+    datafin2=datafin2[order(datafin2$wd),] 
+    knn2_re=datafin2[1:k,]
+    lablet2=as.data.frame(table(knn2_re$Class))
+    lablet2=lablet2[order(lablet2$Freq,decreasing = TRUE),]
+    knnuw2=rbind(knnuw2,lablet2[1,])
+  }
+  return(knnuw2)
+}
+#Choose best k based on the accurancy
+for (k in 1:5) {
+  for (h in 5:15) {
+    datak=knn2(k,h)$Var1
+    Freq=table(datak,datatest$Class)
+    AUC=c(k,h,1-sum(diag(Freq))/299)
+    print(AUC)
+  }
+}
+#From the print, I find that k=3 and h=15 is the best choice
+start_time2 <- Sys.time()
+datak_315=knn2(3,15)
+datak_315$Var1#show KNN classification result
+datak_315[,'prob1']=NA
+datak_315$prob1=replace(datak_315$prob1,which(datak_315$Var1==0),
+                      1-datak_315[which(datak_315$Var1==0),2]/3)
+datak_315$prob1=replace(datak_315$prob1,which(datak_315$Var1==1),
+                      datak_315[which(datak_315$Var1==1),2]/3)
+final2_roc=data.frame(fpr=vector(),tpr=vector())
+data2_315=datak_315
+for (i in seqs) {
+  data2_315$Var1=replace(data2_315$Var1,which(i<=data2_315$prob1&data2_315$prob1<2),1)
+  roc32=table(data2_315$Var1,datatest$Class)
+  roc32
+  tpr2=roc32[1,2]/sum(roc32[,2])
+  fpr2=roc32[1,1]/sum(roc32[,1])
+  roc2=data.frame('fpt'=fpr2,'tpr'=tpr2)
+  final2_roc=rbind(final2_roc,roc2)
+  data2_315=datak_315
+}
+print(final2_roc)
+final2_roc=rbind(final2_roc,list(0,0))
+f2=plot(final2_roc,type = "l",xlab="fpr",ylab='tpr',main='weighted KNN')
+end_time2 <- Sys.time()
+knn2_time=end_time-start_time
+knn2_time
+
+```
